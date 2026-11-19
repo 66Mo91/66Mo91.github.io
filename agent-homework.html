@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的 AI Agent 使用记录</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        body {
+            background-color: #f4f7fa;
+            padding-top: 70px;
+        }
+        /* 导航栏 */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 24px;
+            height: 65px;
+            z-index: 10;
+        }
+        .logo {
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .nav-links a {
+            color: #ecf0f1;
+            text-decoration: none;
+            margin-left: 18px;
+            font-size: 15px;
+        }
+        .nav-links a:hover {
+            color: #3498db;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        section {
+            margin-bottom: 60px;
+        }
+        h1 {
+            font-size: 32px;
+            color: #222;
+            margin-bottom: 8px;
+        }
+        .sub-title {
+            color: #555;
+            margin-bottom: 35px;
+        }
+        h2 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 24px;
+            border-left: 6px solid #3498db;
+            padding-left: 10px;
+        }
+        /* 卡片网格 */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 24px;
+        }
+        .card {
+            background: white;
+            border-radius: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            padding: 24px;
+            transition: 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-6px);
+            box-shadow: 0 8px 22px rgba(0,0,0,0.14);
+        }
+        .card h3 {
+            font-size: 20px;
+            color: #2c3e50;
+            margin-bottom: 12px;
+        }
+        .card p {
+            color: #666;
+            line-height: 1.7;
+        }
+        .summary-box {
+            background: #fff;
+            border-radius: 14px;
+            padding: 26px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #888;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航 -->
+    <nav>
+        <div class="logo">AI Agent 作业</div>
+        <div class="nav-links">
+            <a href="index.html">返回主页</a>
+            <a href="#intro">介绍</a>
+            <a href="#agents">使用情况</a>
+            <a href="#summary">小结</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <section id="intro">
+            <h1>AI Agent (Work Buddy) 使用记录</h1>
+            <div class="sub-title">人工智能概论｜姓名：莫祖乾</div>
+            <div class="summary-box">
+                <p>AI Agent 是具备感知、规划、调用工具能力的智能助手。下面记录我日常使用的各类智能体、使用场景与实际体验。</p>
+            </div>
+        </section>
+
+        <section id="agents">
+            <h2>使用情况</h2>
+            <div class="card-grid">
+                <div class="card">
+                    <h3>初用Work Buddy</h3>
+                    <p> 这是我第一次使用WorkBuddy，也是我第一次听说AI Agent，不知道它的功能有些什么。联想到我最近的任务，《费曼物理》的读书笔记，我便把要读的材料（一个PDF文档，大小大概800k）丢给了WorkBuddy，希望它能给我简要概况一些及指出其中的写作逻辑。第一次使用总有些差错，AI报错并显示找不到这个临时文件（ENOENT：no such file or directory)。</p>
+                </div>
+                <div class="card">
+                    <h3>分析及调试</h3>
+                    <p>我搜索到以下原因：</p>
+                    <p>1. Windows系统临时文件夹内的缓存文件被杀毒软件、系统机制自动清理</p>
+                    <p>​2. 软件对临时目录的读写权限不足​</p>
+                    <p>3.Agent调用文档解析技能时文件句柄丢失</p>
+                    <p>于是我重新启动WorkBuddy，新建任务，选择日常办公-文档处理，从新发送PDF文档，并在桌面备份一份，权限选择允许完全访问，并将指令任务缩短，让其只用提取第一页的文字。可是还是显示出相同的报错</p>
+                </div>
+                <div class="card">
+                    <h3>报错反馈</h3>
+                    <p>WorkBuddy作为AI Agent，文档解析功能依赖本地临时缓存文件。即便文件本身完好、预览正常，Windows系统、软件自身机制会造成临时文件丢失，导致Agent调用文档工具执行失败。 这体现AI Agent的短板：Agent不仅依赖大模型本身，还依赖本地操作系统、文件读写环境；环境异常会直接中断任务，和普通一次性问答AI相比，Agent调用外部工具会引入更多环境层面故障。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="summary">
+            <h2>小结</h2>
+            <div class="summary-box">
+                <p>之前我忽略了一个细节，也有可能是该文件是扫描图片版PDF，没有可复制文字，默认读不出来，需要OCR增强解析。为了绕开这一不足，我将文档内容提取文字，并复制给WorkBuddy，得到了最终结果。WorkBuddy给我生成了文档内容的主题、原因、定理内容及含义等简要概况，其生成速度和任务完成度都是很不错的</p>
+            </div>
+        </section>
+    </div>
+
+    <footer>
+        <p>部署于 GitHub Pages</p>
+    </footer>
+</body>
+</html>
