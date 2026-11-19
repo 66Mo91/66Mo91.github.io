@@ -25,6 +25,17 @@
     --radius:12px;
   }
   *{box-sizing:border-box;}
+  .topnav{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 18px;}
+  .topnav a{
+    display:inline-flex;align-items:center;gap:6px;padding:7px 15px;border:1px solid #d9e1ea;
+    border-radius:999px;background:#fff;color:#2563a8;text-decoration:none;font-size:13.5px;
+    font-weight:600;box-shadow:0 1px 3px rgba(30,42,54,.10);
+  }
+  .topnav a:hover{background:#eef4fb;border-color:#b7cde4;}
+  .topnav a.home{color:#5c6b7a;font-weight:500;}
+  .topnav .path{color:#5c6b7a;font-size:13px;}
+  .topnav .path b{color:#1e2a36;font-weight:600;}
+
   html,body{margin:0;padding:0;}
   body{
     background:var(--bg);
@@ -153,6 +164,11 @@
 <div class="wrap">
 
   <!-- ===== 顶部：标题 + 结构 + 超参数 ===== -->
+    <nav class="topnav" aria-label="页面导航">
+    <a href="index.html" class="home">← 返回主页</a>
+    <span class="path">主页 / <b>MLP 学习参数可视化</b></span>
+  </nav>
+
   <header class="hero">
     <h1>MLP 多层感知机：学习参数可视化</h1>
     <p class="sub">基于 NumPy 从零实现的多层感知机（前向传播 · 反向传播 · 梯度下降），本页展示训练过程中的损失、准确率、权重/梯度范数、权重矩阵热图与决策边界演变。</p>
