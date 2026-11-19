@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MLP 多层感知机：学习参数可视化</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563a8'/%3E%3Cpath d='M10 15 14 9M10 17 14 23M18 9l5 6M18 23l5-6' stroke='white' stroke-width='1.2'/%3E%3Ccircle cx='8' cy='16' r='3' fill='white'/%3E%3Ccircle cx='16' cy='8' r='3' fill='white'/%3E%3Ccircle cx='16' cy='24' r='3' fill='white'/%3E%3Ccircle cx='25' cy='16' r='3' fill='white'/%3E%3C/svg%3E">
+<style>
+  /* ========== 基础与配色 ========== */
+  :root{
+    --bg:#f4f6f9;
+    --card:#ffffff;
+    --ink:#1e2a36;
+    --muted:#5c6b7a;
+    --line:#d9e1ea;
+    --accent:#2563a8;
+    --c0:#2f8f9e;        /* 类别 0 颜色（青） */
+    --c1:#e08a3c;        /* 类别 1 颜色（橙） */
+    --good:#2e8b57;
+    --bad:#b2182b;
+    --heat-pos:#b2182b;  /* 权重正侧 */
+    --heat-neg:#2166ac;  /* 权重负侧 */
+    --heat-zero:#f7f7f7;
+    --shadow:0 1px 3px rgba(30,42,54,.10);
+    --radius:12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC","Source Han Sans SC",sans-serif;
+    line-height:1.6;
+    font-size:15px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+
+  /* ========== 顶部 ========== */
+  header.hero{margin-bottom:22px;}
+  .hero h1{font-size:26px;margin:0 0 6px;font-weight:700;letter-spacing:.5px;}
+  .hero p.sub{margin:0;color:var(--muted);font-size:14px;}
+
+  .notice{
+    display:none;
+    margin:14px 0 0;
+    padding:10px 14px;
+    border:1px solid #f0c98a;
+    background:#fff7ea;
+    color:#8a5a17;
+    border-radius:10px;
+    font-size:13.5px;
+  }
+  .notice.show{display:block;}
+
+  .hero-grid{
+    display:grid;
+    grid-template-columns:1fr;
+    gap:18px;
+    margin-top:20px;
+  }
+  @media (min-width:860px){
+    .hero-grid{grid-template-columns:1.1fr 1.4fr;align-items:stretch;}
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+    padding:16px 18px;
+  }
+  .card h3{margin:0 0 12px;font-size:15px;font-weight:600;}
+  .card h3 .tag{font-weight:400;color:var(--muted);font-size:12.5px;margin-left:8px;}
+
+  /* 结构示意 SVG 容器 */
+  .structure{display:flex;align-items:center;justify-content:center;padding:6px 0;}
+  .structure svg{width:100%;max-width:430px;height:auto;}
+
+  /* 超参数卡片 */
+  .meta-grid{
+    display:grid;
+    grid-template-columns:repeat(2,1fr);
+    gap:10px;
+  }
+  @media (min-width:640px){.meta-grid{grid-template-columns:repeat(3,1fr);}}
+  .meta-item{
+    border:1px solid var(--line);
+    border-radius:10px;
+    padding:10px 12px;
+    background:#fbfcfe;
+    min-width:0;
+  }
+  .meta-item .k{font-size:12.5px;color:var(--muted);}
+  .meta-item .v{font-size:17px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums;}
+  .meta-item .v small{font-size:12px;font-weight:400;color:var(--muted);}
+
+  /* ========== 分区标题 ========== */
+  section{margin-top:30px;}
+  .section-head{margin:0 0 14px;}
+  .section-head h2{font-size:19px;margin:0 0 4px;font-weight:700;}
+  .section-head p{margin:0;color:var(--muted);font-size:13.5px;}
+
+  /* ========== 图表网格 ========== */
+  .grid-2{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media (min-width:760px){.grid-2{grid-template-columns:repeat(2,1fr);}}
+  .chart-card canvas{width:100%;height:230px;display:block;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--muted);margin-top:6px;}
+  .legend .swatch{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+
+  /* ========== 权重热图 ========== */
+  .heat-row{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media (min-width:760px){.heat-row{grid-template-columns:repeat(3,1fr);}}
+  .heat-block{min-width:0;}
+  .heat-block .heat-title{font-size:13px;font-weight:600;margin-bottom:8px;}
+  .heat-block .heat-title .dim{color:var(--muted);font-weight:400;font-size:12px;margin-left:6px;}
+  canvas.heatmap{width:100%;height:auto;display:block;}
+  .heat-note{font-size:12px;color:var(--muted);margin-top:8px;}
+
+  .snap-row{display:grid;grid-template-columns:1fr;gap:16px;margin-top:18px;}
+  @media (min-width:760px){.snap-row{grid-template-columns:repeat(3,1fr);}}
+
+  .bias-row{display:grid;grid-template-columns:1fr;gap:16px;margin-top:18px;}
+  @media (min-width:760px){.bias-row{grid-template-columns:repeat(3,1fr);}}
+
+  /* ========== 决策边界 ========== */
+  .boundary-row{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media (min-width:860px){.boundary-row{grid-template-columns:repeat(3,1fr);}}
+  .boundary-card canvas{width:100%;height:280px;display:block;}
+  .boundary-card .b-title{font-size:14px;font-weight:600;margin-bottom:8px;}
+  .boundary-card .b-title .epoch{color:var(--accent);font-variant-numeric:tabular-nums;}
+  .boundary-legend{display:flex;gap:16px;font-size:12.5px;color:var(--muted);margin-top:8px;}
+
+  /* ========== 底部说明 ========== */
+  .explain-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media (min-width:760px){.explain-grid{grid-template-columns:repeat(2,1fr);}}
+  .formula{
+    background:#f7f9fc;
+    border-left:3px solid var(--accent);
+    border-radius:8px;
+    padding:10px 14px;
+    margin:8px 0;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono CJK SC",monospace;
+    font-size:13px;
+    overflow-x:auto;
+  }
+  .explain-grid p{margin:6px 0;font-size:13.5px;color:#33424f;}
+  .source-note{margin-top:18px;font-size:12.5px;color:var(--muted);border-top:1px dashed var(--line);padding-top:14px;}
+
+  footer.foot{margin-top:36px;text-align:center;color:var(--muted);font-size:12.5px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== 顶部：标题 + 结构 + 超参数 ===== -->
+  <header class="hero">
+    <h1>MLP 多层感知机：学习参数可视化</h1>
+    <p class="sub">基于 NumPy 从零实现的多层感知机（前向传播 · 反向传播 · 梯度下降），本页展示训练过程中的损失、准确率、权重/梯度范数、权重矩阵热图与决策边界演变。</p>
+    <div id="data-notice" class="notice" role="status"></div>
+
+    <div class="hero-grid">
+      <div class="card">
+        <h3>网络结构 <span class="tag">输入 2 → 隐藏 8 → 隐藏 8 → 输出 2</span></h3>
+        <div class="structure">
+          <svg viewBox="0 0 460 220" aria-label="MLP 结构示意图">
+            <!-- 连线由 JS 依据层级节点生成 -->
+            <g id="structure-links" stroke="#c9d6e2" stroke-width="1"></g>
+            <g id="structure-nodes"></g>
+            <g id="structure-labels" font-size="12" fill="#5c6b7a" text-anchor="middle"></g>
+          </svg>
+        </div>
+      </div>
+      <div class="card">
+        <h3>超参数与训练结果</h3>
+        <div id="meta-grid" class="meta-grid"></div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===== 训练动态曲线 ===== -->
+  <section>
+    <div class="section-head">
+      <h2>一、训练动态</h2>
+      <p>横轴为训练轮次（epoch）；曲线取自训练脚本导出的 history 记录。</p>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card">
+        <h3>损失曲线 <span class="tag">交叉熵损失，越低越好</span></h3>
+        <canvas id="chart-loss"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>准确率曲线 <span class="tag">训练集分类准确率</span></h3>
+        <canvas id="chart-acc"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>权重范数曲线 <span class="tag">全部可训练参数的 L2 范数</span></h3>
+        <canvas id="chart-wnorm"></canvas>
+      </div>
+      <div class="card chart-card">
+        <h3>梯度范数曲线 <span class="tag">反向传播梯度的 L2 范数</span></h3>
+        <canvas id="chart-grad"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 权重与偏置参数 ===== -->
+  <section>
+    <div class="section-head">
+      <h2>二、学习参数：权重矩阵与偏置</h2>
+      <p>热图按层展示最终权重矩阵：蓝色为负权重、红色为正权重、白色接近零；单元格内标注数值。下方对比第一层权重在训练前 / 中 / 后的快照。</p>
+    </div>
+    <div class="card">
+      <div id="weight-layers" class="heat-row"></div>
+      <div id="weight-snapshots" class="snap-row"></div>
+      <div id="bias-bars" class="bias-row"></div>
+    </div>
+  </section>
+
+  <!-- ===== 决策边界 ===== -->
+  <section>
+    <div class="section-head">
+      <h2>三、决策边界演变</h2>
+      <p>底色为模型对网格区域的预测类别，散点为训练样本；对比训练前、训练中、训练后三个阶段的分类区域。</p>
+    </div>
+    <div class="boundary-row" id="boundary-row"></div>
+    <div class="boundary-legend" style="margin-top:10px;">
+      <span><span class="swatch" style="background:var(--c0);border-radius:50%;display:inline-block;width:11px;height:11px;margin-right:5px;"></span>类别 0（圆点）</span>
+      <span><span class="swatch" style="background:var(--c1);display:inline-block;width:11px;height:11px;margin-right:5px;"></span>类别 1（方块）</span>
+    </div>
+  </section>
+
+  <!-- ===== 静态备份图 ===== -->
+  <section>
+    <div class="section-head">
+      <h2>四、静态备份图（matplotlib 导出）</h2>
+      <p>以下图片由训练脚本用 matplotlib 生成，保存在 <code>assets/</code> 目录，可直接用于课程报告或 PPT；上方交互图表与这些静态图数据一致。</p>
+    </div>
+    <div class="grid-2">
+      <div class="card chart-card"><h3>损失与准确率曲线</h3><img src="assets/curves_loss_acc.png" alt="损失与准确率曲线" style="width:100%;display:block;border-radius:8px;"></div>
+      <div class="card chart-card"><h3>权重范数与梯度范数曲线</h3><img src="assets/curves_norm.png" alt="范数曲线" style="width:100%;display:block;border-radius:8px;"></div>
+      <div class="card chart-card"><h3>最终权重矩阵热图</h3><img src="assets/weights_heatmap.png" alt="权重热图" style="width:100%;display:block;border-radius:8px;"></div>
+      <div class="card chart-card"><h3>决策边界三阶段对比</h3><img src="assets/decision_boundary.png" alt="决策边界对比" style="width:100%;display:block;border-radius:8px;"></div>
+    </div>
+  </section>
+
+  <!-- ===== 原理说明 ===== -->
+  <section>
+    <div class="section-head">
+      <h2>五、方法与公式说明</h2>
+    </div>
+    <div class="explain-grid">
+      <div class="card">
+        <h3>前向传播</h3>
+        <p>对第 l 层，先计算线性加权和，再经过激活函数得到本层输出：</p>
+        <div class="formula">z⁽l⁾ = W⁽l⁾ · a⁽l-1⁾ + b⁽l⁾</div>
+        <div class="formula">a⁽l⁾ = f(z⁽l⁾)，隐藏层使用 tanh：f(z)=(e^z−e^(−z))/(e^z+e^(−z))；输出层经 Softmax 得到类别概率 p。</div>
+      </div>
+      <div class="card">
+        <h3>交叉熵损失</h3>
+        <p>二分类（或多分类）交叉熵衡量预测概率分布与真实标签的差异：</p>
+        <div class="formula">L = - (1/N) Σᵢ Σₖ yᵢₖ · log pᵢₖ</div>
+        <p>训练目标即最小化该损失；损失曲线随 epoch 下降说明模型在拟合训练数据。</p>
+      </div>
+      <div class="card">
+        <h3>反向传播（链式法则）</h3>
+        <p>从输出层反向逐层传递误差，先求本层误差项 δ，再回传给前一层：</p>
+        <div class="formula">δ⁽l⁾ = (W⁽l+1⁾)ᵀ · δ⁽l+1⁾ ⊙ f'(z⁽l⁾)</div>
+        <div class="formula">∂L/∂W⁽l⁾ = δ⁽l⁾ · (a⁽l-1⁾)ᵀ，　∂L/∂b⁽l⁾ = δ⁽l⁾</div>
+      </div>
+      <div class="card">
+        <h3>SGD 参数更新</h3>
+        <p>沿梯度反方向按学习率 η 更新所有权重与偏置：</p>
+        <div class="formula">W⁽l⁾ ← W⁽l⁾ - η · ∂L/∂W⁽l⁾</div>
+        <div class="formula">b⁽l⁾ ← b⁽l⁾ - η · ∂L/∂b⁽l⁾</div>
+        <p>反复迭代前向计算、反向求导与参数更新，直到损失收敛。</p>
+      </div>
+    </div>
+    <div class="source-note" id="source-note"></div>
+  </section>
+
+  <footer class="foot">本页面为课程作业展示页 · 交互图表由原生 Canvas 手绘，静态备份图位于 assets/ 目录；无外部脚本 / 字体 / CDN 依赖，可离线双击打开。</footer>
+</div>
+
+<!-- 训练脚本导出的数据（由另一任务生成；缺失时页面使用内置演示数据兜底） -->
+<script src="data/data.js"></script>
+<script>
+/* =====================================================================
+ * MLP 学习参数可视化 · 主脚本（原生 JS + Canvas，无外部依赖）
+ * 数据契约（window.MLP_DATA，字段名不可改）：
+ *   meta       { dataset, n_samples, hidden:[h1,h2], lr, epochs,
+ *                final_loss, final_acc, activation, loss, optimizer }
+ *   points     { X:[[x,y],...], y:[0/1,...] }
+ *   history    { epochs:[...], loss:[...], acc:[...], w_norm:[...], grad_norm:[...] }
+ *   boundaries [{ epoch, title, grid:{nx,ny,xmin,xmax,ymin,ymax,Z:[0/1 行优先]} }]
+ *   weights    { layers:[{name,rows,cols,matrix:[[...]]}], biases:[{name,values:[...]}] }
+ *   weight_snapshots [{ epoch, layer, matrix:[[...]] }]
+ * ===================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------- 通用工具 ---------- */
+  function pick(obj, key, def) {
+    return (obj && obj[key] !== undefined && obj[key] !== null) ? obj[key] : def;
+  }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function fmt(v, n) { return (typeof v === 'number' && isFinite(v)) ? v.toFixed(n) : '—'; }
+  // 可复现的伪随机数（兜底数据使用，保证每次打开样例一致）
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      var t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* =====================================================================
+   * 内置兜底演示数据（data/data.js 缺失或字段不完整时渲染，保证双击 HTML 也能看到完整图表样式）
+   * ===================================================================== */
+  function buildFallbackData() {
+    var rnd = mulberry32(20261112);
+    var X = [], y = [], i, t, nx = 100;
+
+    // 两个月牙形（two-moons）样例
+    for (i = 0; i < nx; i++) {
+      t = Math.PI * rnd();
+      X.push([Math.cos(t) + (rnd() - 0.5) * 0.16, Math.sin(t) + (rnd() - 0.5) * 0.16]);
+      y.push(0);
+      X.push([1 - Math.cos(t) + (rnd() - 0.5) * 0.16, 1 - Math.sin(t) - 0.5 + (rnd() - 0.5) * 0.16]);
+      y.push(1);
+    }
+
+    var E = 120, epochs = [], loss = [], acc = [], wnorm = [], grad = [];
+    for (i = 1; i <= E; i++) {
+      epochs.push(i);
+      loss.push(+(1.15 * Math.exp(-0.030 * i) + 0.11 + (rnd() - 0.5) * 0.02).toFixed(4));
+      acc.push(clamp(0.50 + 0.47 * (1 - Math.exp(-0.028 * i)) + (rnd() - 0.5) * 0.01, 0, 1).toFixed(4) * 1);
+      wnorm.push(+(1.5 + 0.6 * (1 - Math.exp(-0.020 * i)) + 0.05 * Math.sin(i / 8)).toFixed(4));
+      grad.push(+(2.2 * Math.exp(-0.025 * i) + 0.15 + rnd() * 0.08).toFixed(4));
+    }
+
+    function randMat(rows, cols, scale) {
+      var m = [], r, c;
+      for (r = 0; r < rows; r++) { var row = []; for (c = 0; c < cols; c++) row.push(+((rnd() - 0.5) * scale).toFixed(4)); m.push(row); }
+      return m;
+    }
+    function randVec(n, scale) { var v = [], k; for (k = 0; k < n; k++) v.push(+((rnd() - 0.5) * scale).toFixed(4)); return v; }
+
+    var W1 = randMat(2, 8, 0.9), W2 = randMat(8, 8, 0.7), W3 = randMat(8, 2, 0.7);
+
+    // 决策边界网格：训练前（噪声）/ 训练中（半分割）/ 训练后（平滑月牙分类）
+    function makeBoundary(epoch, title, mode) {
+      var g = { nx: 42, ny: 42, xmin: -1.8, xmax: 2.2, ymin: -1.6, ymax: 1.8, Z: [] };
+      var r, c, x, yy, val;
+      for (r = 0; r < g.ny; r++) {
+        for (c = 0; c < g.nx; c++) {
+          x = g.xmin + (g.xmax - g.xmin) * c / (g.nx - 1);
+          yy = g.ymin + (g.ymax - g.ymin) * r / (g.ny - 1);
+          if (mode === 'before') val = rnd() > 0.5 ? 1 : 0;
+          else if (mode === 'mid') val = ((x + yy) > 0.15 && rnd() > 0.25) ? 1 : 0;
+          else {
+            var d0 = x * x + (yy - 0.5) * (yy - 0.5);
+            var d1 = (x - 1) * (x - 1) + (yy + 0.5) * (yy + 0.5);
+            val = d1 < d0 ? 1 : 0;
+          }
+          g.Z.push(val);
+        }
+      }
+      return { epoch: epoch, title: title, grid: g };
+    }
+
+    return {
+      meta: {
+        dataset: 'two-moons（内置演示样例）',
+        n_samples: 200,
+        hidden: [8, 8],
+        lr: 0.1,
+        epochs: E,
+        final_loss: loss[loss.length - 1],
+        final_acc: acc[acc.length - 1],
+        activation: 'tanh',
+        loss: '交叉熵 Cross-Entropy',
+        optimizer: 'SGD'
+      },
+      points: { X: X, y: y },
+      history: { epochs: epochs, loss: loss, acc: acc, w_norm: wnorm, grad_norm: grad },
+      boundaries: [
+        makeBoundary(1, '训练前（随机初始参数）', 'before'),
+        makeBoundary(Math.round(E / 2), '训练中（边界逐步成形）', 'mid'),
+        makeBoundary(E, '训练后（收敛决策边界）', 'after')
+      ],
+      weights: {
+        layers: [
+          { name: 'W1（输入 → 隐藏1）', rows: 2, cols: 8, matrix: W1 },
+          { name: 'W2（隐藏1 → 隐藏2）', rows: 8, cols: 8, matrix: W2 },
+          { name: 'W3（隐藏2 → 输出）', rows: 8, cols: 2, matrix: W3 }
+        ],
+        biases: [
+          { name: 'b1（隐藏1）', values: randVec(8, 0.4) },
+          { name: 'b2（隐藏2）', values: randVec(8, 0.4) },
+          { name: 'b3（输出）', values: randVec(2, 0.4) }
+        ]
+      },
+      weight_snapshots: [
+        { epoch: 1, layer: 'W1', matrix: randMat(2, 8, 0.5) },
+        { epoch: Math.round(E / 2), layer: 'W1', matrix: W1.map(function (row) { return row.map(function (v) { return +(v * 0.55).toFixed(4); }); }) },
+        { epoch: E, layer: 'W1', matrix: W1 }
+      ]
+    };
+  }
+
+  /* ---------- 数据装载与校验 ---------- */
+  var isFallback = !(window.MLP_DATA && window.MLP_DATA.meta && window.MLP_DATA.points);
+  var DATA = isFallback ? buildFallbackData() : window.MLP_DATA;
+
+  var meta = DATA.meta || {};
+  var points = DATA.points || { X: [], y: [] };
+  var history = DATA.history || { epochs: [], loss: [], acc: [], w_norm: [], grad_norm: [] };
+  var boundaries = DATA.boundaries || [];
+  var weights = DATA.weights || { layers: [], biases: [] };
+  var snapshots = DATA.weight_snapshots || [];
+
+  /* ---------- 画布基础工具 ---------- */
+  function setupCanvas(canvas) {
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = canvas.clientWidth || canvas.parentElement.clientWidth || 600;
+    var cssH = canvas.clientHeight || 230;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+    return { ctx: ctx, W: cssW, H: cssH };
+  }
+
+  /* ---------- 线性折线图 ---------- */
+  function drawLineChart(canvas, series, opts) {
+    if (!canvas) return;
+    var s = setupCanvas(canvas);
+    var ctx = s.ctx, W = s.W, H = s.H;
+    var pad = { l: 50, r: 14, t: 16, b: 30 };
+    var i, k;
+
+    // 汇总所有序列求坐标范围
+    var all = [];
+    series.forEach(function (sr) { sr.data.forEach(function (v) { if (isFinite(v)) all.push(v); }); });
+    if (!all.length) { ctx.fillStyle = '#5c6b7a'; ctx.font = '13px sans-serif'; ctx.fillText('暂无数据', pad.l, H / 2); return; }
+
+    var yMin = opts.yMin !== undefined ? opts.yMin : Math.min.apply(null, all);
+    var yMax = opts.yMax !== undefined ? opts.yMax : Math.max.apply(null, all);
+    if (yMin === yMax) { yMin -= 1; yMax += 1; }
+    var padY = (yMax - yMin) * 0.08;
+    yMin -= padY; yMax += padY;
+
+    var xCount = Math.max.apply(null, series.map(function (sr) { return sr.data.length; }).concat([1]));
+    function xPos(idx) { return pad.l + (W - pad.l - pad.r) * (xCount <= 1 ? 0.5 : idx / (xCount - 1)); }
+    function yPos(v) { return pad.t + (H - pad.t - pad.b) * (1 - (v - yMin) / (yMax - yMin)); }
+
+    // 横向网格 + Y 轴刻度
+    ctx.strokeStyle = '#e6edf3'; ctx.fillStyle = '#5c6b7a'; ctx.font = '11.5px sans-serif'; ctx.lineWidth = 1;
+    var ticks = 4;
+    for (k = 0; k <= ticks; k++) {
+      var v = yMin + (yMax - yMin) * k / ticks;
+      var yy = yPos(v);
+      ctx.beginPath(); ctx.moveTo(pad.l, yy); ctx.lineTo(W - pad.r, yy); ctx.stroke();
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(opts.formatY ? opts.formatY(v) : fmt(v, 2), pad.l - 6, yy);
+    }
+    // X 轴刻度（epoch）
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    var xTicks = Math.min(5, xCount);
+    for (k = 0; k <= xTicks; k++) {
+      var idx = Math.round((xCount - 1) * k / xTicks);
+      var label = history.epochs && history.epochs.length === xCount ? history.epochs[idx] : (idx + 1);
+      ctx.fillText(String(label), xPos(idx), H - pad.b + 8);
+    }
+    ctx.textAlign = 'left'; ctx.fillText('epoch', pad.l, H - 4);
+
+    // 绘制序列
+    series.forEach(function (sr) {
+      ctx.strokeStyle = sr.color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.beginPath();
+      sr.data.forEach(function (v, idx) {
+        if (!isFinite(v)) return;
+        var px = xPos(idx), py = yPos(v);
+        if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    });
+  }
+
+  /* ---------- 权重热图 ---------- */
+  function heatColor(v, vmax) {
+    var t = clamp(v / vmax, -1, 1);
+    var neg = [33, 102, 172], pos = [178, 24, 43], zero = [247, 247, 247];
+    var base, q;
+    if (t < 0) { base = zero; q = -t; } else { base = zero; q = t; }
+    var end = t < 0 ? neg : pos;
+    var r = Math.round(base[0] + (end[0] - base[0]) * q);
+    var g = Math.round(base[1] + (end[1] - base[1]) * q);
+    var b = Math.round(base[2] + (end[2] - base[2]) * q);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+  }
+
+  function drawHeatmap(canvas, matrix, opts) {
+    if (!canvas || !matrix || !matrix.length) return;
+    var rows = matrix.length, cols = matrix[0].length;
+    var cssW = canvas.clientWidth || 320;
+    var pad = 6, maxH = 280;
+    // 单元格尺寸同时受可用宽度与最大高度约束，避免宽高比悬殊的矩阵被拉得过高
+    var cell = Math.max(8, Math.floor(Math.min((cssW - pad * 2) / cols, (maxH - 26) / rows)));
+    var gridW = cols * cell, gridH = rows * cell;
+    var offX = pad + Math.max(0, (cssW - pad * 2 - gridW) / 2);
+    var offY = pad;
+    var cssH = gridH + 26; // 26 留给色标
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    var vmax = 0, r, c;
+    matrix.forEach(function (row) { row.forEach(function (v) { vmax = Math.max(vmax, Math.abs(v)); }); });
+    if (vmax === 0) vmax = 1;
+
+    var showLabel = cols <= 12 && rows <= 12 && cell >= 16;
+    for (r = 0; r < rows; r++) {
+      for (c = 0; c < cols; c++) {
+        var v = matrix[r][c];
+        var x = offX + c * cell, y = offY + r * cell;
+        ctx.fillStyle = heatColor(v, vmax);
+        ctx.fillRect(x, y, cell - 1, cell - 1);
+        ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.strokeRect(x + 0.5, y + 0.5, cell - 1, cell - 1);
+        if (showLabel) {
+          ctx.fillStyle = Math.abs(v) > vmax * 0.55 ? '#ffffff' : '#1e2a36';
+          ctx.font = Math.min(10, cell * 0.38) + 'px sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(fmt(v, 2), x + cell / 2, y + cell / 2);
+        }
+      }
+    }
+    // 色标
+    var cbY = offY + gridH + 8, cbW = Math.min(140, gridW);
+    for (c = 0; c < cbW; c++) {
+      ctx.fillStyle = heatColor(-vmax + 2 * vmax * c / (cbW - 1), vmax);
+      ctx.fillRect(offX + c, cbY, 1, 8);
+    }
+    ctx.fillStyle = '#5c6b7a'; ctx.font = '10.5px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('−' + fmt(vmax, 2), offX, cbY + 10);
+    ctx.textAlign = 'center'; ctx.fillText('0', offX + cbW / 2, cbY + 10);
+    ctx.textAlign = 'right'; ctx.fillText('+' + fmt(vmax, 2), offX + cbW, cbY + 10);
+  }
+
+  /* ---------- 偏置条形图 ---------- */
+  function drawBiasBars(container, biases) {
+    if (!container) return;
+    container.innerHTML = '';
+    if (!biases || !biases.length) { container.innerHTML = '<p class="heat-note">暂无偏置数据。</p>'; return; }
+    biases.forEach(function (layer) {
+      var box = document.createElement('div');
+      box.className = 'heat-block';
+      var title = document.createElement('div');
+      title.className = 'heat-title';
+      title.textContent = layer.name + '　';
+      var dim = document.createElement('span'); dim.className = 'dim'; dim.textContent = '长度 ' + layer.values.length;
+      title.appendChild(dim);
+      var canvas = document.createElement('canvas');
+      canvas.className = 'heatmap';
+      box.appendChild(title); box.appendChild(canvas);
+      container.appendChild(box);
+
+      var vals = layer.values;
+      var vmax = 1; vals.forEach(function (v) { vmax = Math.max(vmax, Math.abs(v)); });
+      requestAnimationFrame(function () {
+        var cssW = canvas.clientWidth || 300;
+        var rowH = 22, pad = 8;
+        var cssH = vals.length * rowH + pad;
+        var dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+        var ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, cssW, cssH);
+        var mid = cssW / 2;
+        ctx.strokeStyle = '#c9d6e2'; ctx.beginPath(); ctx.moveTo(mid, pad); ctx.lineTo(mid, cssH - pad); ctx.stroke();
+        vals.forEach(function (v, i) {
+          var y = pad + i * rowH + 4;
+          var w = Math.abs(v) / vmax * (mid - pad - 30);
+          ctx.fillStyle = v < 0 ? '#2166ac' : '#b2182b';
+          if (v < 0) ctx.fillRect(mid - w, y, w, 14); else ctx.fillRect(mid, y, w, 14);
+          ctx.fillStyle = '#1e2a36'; ctx.font = '11px sans-serif'; ctx.textBaseline = 'middle';
+          ctx.textAlign = v < 0 ? 'right' : 'left';
+          ctx.fillText(fmt(v, 3), v < 0 ? mid - w - 4 : mid + w + 4, y + 7);
+        });
+      });
+    });
+  }
+
+  /* ---------- 决策边界图 ---------- */
+  function drawBoundary(canvas, grid, pts) {
+    if (!canvas || !grid) return;
+    var s = setupCanvas(canvas);
+    var ctx = s.ctx, W = s.W, H = s.H;
+    var pad = { l: 44, r: 12, t: 12, b: 28 };
+    var i;
+
+    var nx = grid.nx, ny = grid.ny;
+    var zx = function (x) { return pad.l + (W - pad.l - pad.r) * (x - grid.xmin) / (grid.xmax - grid.xmin); };
+    var zy = function (y) { return pad.t + (H - pad.t - pad.b) * (1 - (y - grid.ymin) / (grid.ymax - grid.ymin)); };
+
+    // 分类区域底色（逐网格单元格）
+    var c0bg = 'rgba(47,143,158,0.20)', c1bg = 'rgba(224,138,60,0.22)';
+    var cellW = (W - pad.l - pad.r) / nx, cellH = (H - pad.t - pad.b) / ny;
+    for (var r = 0; r < ny; r++) {
+      for (var c = 0; c < nx; c++) {
+        var v = grid.Z[r * nx + c];
+        ctx.fillStyle = v === 1 ? c1bg : c0bg;
+        ctx.fillRect(pad.l + c * cellW, pad.t + r * cellH, cellW + 0.5, cellH + 0.5);
+      }
+    }
+    // 边框
+    ctx.strokeStyle = '#c9d6e2'; ctx.strokeRect(pad.l, pad.t, W - pad.l - pad.r, H - pad.t - pad.b);
+
+    // 坐标轴刻度
+    ctx.fillStyle = '#5c6b7a'; ctx.font = '11px sans-serif'; ctx.textBaseline = 'top';
+    for (i = 0; i <= 4; i++) {
+      var xVal = grid.xmin + (grid.xmax - grid.xmin) * i / 4;
+      ctx.textAlign = 'center';
+      ctx.fillText(fmt(xVal, 1), zx(xVal), H - pad.b + 8);
+      var yVal = grid.ymin + (grid.ymax - grid.ymin) * i / 4;
+      ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(fmt(yVal, 1), pad.l - 6, zy(yVal));
+    }
+
+    // 散点叠加
+    if (pts && pts.X && pts.X.length) {
+      pts.X.forEach(function (p, idx) {
+        var cls = pts.y[idx];
+        var px = zx(p[0]), py = zy(p[1]);
+        if (px < pad.l || px > W - pad.r || py < pad.t || py > H - pad.b) return;
+        if (cls === 1) {
+          ctx.fillStyle = '#e08a3c';
+          ctx.fillRect(px - 3.5, py - 3.5, 7, 7);
+          ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.strokeRect(px - 3.5, py - 3.5, 7, 7);
+        } else {
+          ctx.beginPath(); ctx.arc(px, py, 3.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#2f8f9e'; ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.stroke();
+        }
+      });
+    }
+  }
+
+  /* ---------- 顶部结构 SVG ---------- */
+  function renderStructure() {
+    var gLinks = document.getElementById('structure-links');
+    var gNodes = document.getElementById('structure-nodes');
+    var gLabels = document.getElementById('structure-labels');
+    if (!gLinks) return;
+    // 重绘前清空旧元素，避免缩放时连线 / 节点重复累积
+    [gLinks, gNodes, gLabels].forEach(function (g) { while (g.firstChild) g.removeChild(g.firstChild); });
+    var hidden = pick(meta, 'hidden', [8, 8]);
+    var layers = [2].concat(hidden).concat([2]);
+    var vbs = { W: 460, H: 220 };
+    var xs = layers.map(function (_, i) { return 60 + i * (vbs.W - 120) / (layers.length - 1); });
+    var nodePos = layers.map(function (n, li) {
+      var arr = [];
+      for (var k = 0; k < n; k++) {
+        var yy = vbs.H / 2 + (k - (n - 1) / 2) * (n === 2 ? 26 : 20);
+        arr.push({ x: xs[li], y: yy });
+      }
+      return arr;
+    });
+    // 连线
+    for (var li = 0; li < nodePos.length - 1; li++) {
+      nodePos[li].forEach(function (a) {
+        nodePos[li + 1].forEach(function (b) {
+          var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
+          line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+          gLinks.appendChild(line);
+        });
+      });
+    }
+    // 节点
+    nodePos.forEach(function (arr) {
+      arr.forEach(function (p) {
+        var c = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        c.setAttribute('cx', p.x); c.setAttribute('cy', p.y); c.setAttribute('r', 10);
+        c.setAttribute('fill', '#ffffff'); c.setAttribute('stroke', '#2563a8'); c.setAttribute('stroke-width', 1.5);
+        gNodes.appendChild(c);
+      });
+    });
+    // 层标签
+    var names = ['输入层', '隐藏层 1', '隐藏层 2', '输出层'];
+    layers.forEach(function (n, i) {
+      var t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      t.setAttribute('x', xs[i]); t.setAttribute('y', vbs.H - 14);
+      t.textContent = names[i] + ' · ' + n;
+      gLabels.appendChild(t);
+    });
+  }
+
+  /* ---------- 超参数卡片 ---------- */
+  function renderMeta() {
+    var grid = document.getElementById('meta-grid');
+    if (!grid) return;
+    var items = [
+      ['数据集', pick(meta, 'dataset', '—')],
+      ['样本数', pick(meta, 'n_samples', '—')],
+      ['网络结构', '2 → ' + (hiddenStr()) + ' → 2'],
+      ['学习率 η', fmt(pick(meta, 'lr', NaN), 4)],
+      ['训练轮次', pick(meta, 'epochs', '—')],
+      ['激活函数', pick(meta, 'activation', '—')],
+      ['损失函数', pick(meta, 'loss', '—')],
+      ['优化器', pick(meta, 'optimizer', '—')],
+      ['最终损失', fmt(pick(meta, 'final_loss', NaN), 4)],
+      ['最终准确率', pick(meta, 'final_acc', NaN) !== undefined ? (pick(meta, 'final_acc', 0) * 100).toFixed(1) + '%' : '—']
+    ];
+    grid.innerHTML = '';
+    items.forEach(function (it) {
+      var d = document.createElement('div'); d.className = 'meta-item';
+      var k = document.createElement('div'); k.className = 'k'; k.textContent = it[0];
+      var v = document.createElement('div'); v.className = 'v'; v.textContent = it[1];
+      d.appendChild(k); d.appendChild(v); grid.appendChild(d);
+    });
+    function hiddenStr() {
+      var h = pick(meta, 'hidden', [8, 8]);
+      return Array.isArray(h) ? h.join(' → ') : String(h);
+    }
+  }
+
+  /* ---------- 权重热图区 ---------- */
+  function renderWeights() {
+    var layerBox = document.getElementById('weight-layers');
+    if (layerBox) {
+      layerBox.innerHTML = '';
+      (weights.layers || []).forEach(function (layer) {
+        var box = document.createElement('div'); box.className = 'heat-block';
+        var title = document.createElement('div'); title.className = 'heat-title';
+        title.textContent = layer.name;
+        var dim = document.createElement('span'); dim.className = 'dim';
+        dim.textContent = layer.rows + ' × ' + layer.cols;
+        title.appendChild(dim);
+        var canvas = document.createElement('canvas'); canvas.className = 'heatmap';
+        box.appendChild(title); box.appendChild(canvas); layerBox.appendChild(box);
+        requestAnimationFrame(function () { drawHeatmap(canvas, layer.matrix, {}); });
+      });
+    }
+
+    var snapBox = document.getElementById('weight-snapshots');
+    if (snapBox) {
+      snapBox.innerHTML = '';
+      if (!snapshots.length) { snapBox.innerHTML = '<p class="heat-note">暂无权重快照数据。</p>'; return; }
+      snapshots.forEach(function (sp) {
+        var box = document.createElement('div'); box.className = 'heat-block';
+        var title = document.createElement('div'); title.className = 'heat-title';
+        title.textContent = '快照 · epoch ' + sp.epoch + '（' + sp.layer + '）';
+        var canvas = document.createElement('canvas'); canvas.className = 'heatmap';
+        box.appendChild(title); box.appendChild(canvas); snapBox.appendChild(box);
+        requestAnimationFrame(function () { drawHeatmap(canvas, sp.matrix, {}); });
+      });
+    }
+
+    drawBiasBars(document.getElementById('bias-bars'), weights.biases);
+  }
+
+  /* ---------- 决策边界区 ---------- */
+  function renderBoundaries() {
+    var row = document.getElementById('boundary-row');
+    if (!row) return;
+    row.innerHTML = '';
+    if (!boundaries.length) { row.innerHTML = '<div class="card"><p class="heat-note">暂无决策边界数据。</p></div>'; return; }
+    boundaries.forEach(function (bd) {
+      var card = document.createElement('div'); card.className = 'card boundary-card';
+      var title = document.createElement('div'); title.className = 'b-title';
+      var epoch = document.createElement('span'); epoch.className = 'epoch';
+      epoch.textContent = 'epoch ' + bd.epoch;
+      var rest = document.createElement('span'); rest.textContent = '　' + (bd.title || '');
+      title.appendChild(epoch); title.appendChild(rest);
+      var canvas = document.createElement('canvas');
+      card.appendChild(title); card.appendChild(canvas); row.appendChild(card);
+      requestAnimationFrame(function () { drawBoundary(canvas, bd.grid, points); });
+    });
+  }
+
+  /* ---------- 训练动态曲线 ---------- */
+  function renderCharts() {
+    drawLineChart(document.getElementById('chart-loss'), [
+      { label: '损失', color: '#2563a8', data: history.loss || [] }
+    ], { formatY: function (v) { return fmt(v, 3); } });
+
+    drawLineChart(document.getElementById('chart-acc'), [
+      { label: '准确率', color: '#2e8b57', data: history.acc || [] }
+    ], { yMin: 0, yMax: 1, formatY: function (v) { return (v * 100).toFixed(0) + '%'; } });
+
+    drawLineChart(document.getElementById('chart-wnorm'), [
+      { label: '权重 L2 范数', color: '#7a5ea8', data: history.w_norm || [] }
+    ], { formatY: function (v) { return fmt(v, 2); } });
+
+    drawLineChart(document.getElementById('chart-grad'), [
+      { label: '梯度 L2 范数', color: '#b2182b', data: history.grad_norm || [] }
+    ], { formatY: function (v) { return fmt(v, 2); } });
+  }
+
+  /* ---------- 数据来源说明 ---------- */
+  function renderSourceNote() {
+    var el = document.getElementById('source-note');
+    if (!el) return;
+    if (isFallback) {
+      el.textContent = '数据来源说明：未检测到 data/data.js（或其字段不完整），当前页面渲染的是内置演示数据，仅用于展示图表样式与布局；将训练脚本导出的 data/data.js（设置 window.MLP_DATA）放置到本文件同级 data/ 目录后，刷新页面即可替换为真实训练结果。';
+    } else {
+      el.textContent = '数据来源说明：本页全部数值与图表来自项目目录 data/data.js 中导出的 window.MLP_DATA（由 NumPy 手写 MLP 训练脚本生成），包括训练历史、最终权重/偏置参数与三个阶段的决策边界网格。';
+    }
+  }
+
+  /* ---------- 通知条 ---------- */
+  function renderNotice() {
+    var el = document.getElementById('data-notice');
+    if (!el) return;
+    if (isFallback) {
+      el.classList.add('show');
+      el.textContent = '提示：当前为内置演示数据（data/data.js 未加载）。接入真实训练数据后，本页将自动展示实际的损失、准确率、权重热图与决策边界。';
+    }
+  }
+
+  /* ---------- 主流程 ---------- */
+  function renderAll() {
+    renderMeta();
+    renderStructure();
+    renderCharts();
+    renderWeights();
+    renderBoundaries();
+    renderSourceNote();
+    renderNotice();
+  }
+
+  renderAll();
+
+  // 窗口尺寸变化时重绘（防抖），保证响应式下图表不拉伸变形
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderAll, 150);
+  });
+})();
+</script>
+</body>
+</html>
